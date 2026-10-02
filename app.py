@@ -4,14 +4,20 @@ import yt_dlp
 
 app = Flask(__name__)
 
+API_KEY = os.environ.get("API_KEY", "change-this-secret")
+
 
 @app.route("/")
 def home():
-    return jsonify({"status": True, "message": "YT API running. Use /api?url=VIDEO_LINK"})
+    return jsonify({"status": True, "message": "YT API running. Use /api?url=VIDEO_LINK&key=YOUR_KEY"})
 
 
 @app.route("/api")
 def api():
+    key = request.args.get("key", "")
+    if key != API_KEY:
+        return jsonify({"status": False, "error": "unauthorized"}), 401
+
     url = request.args.get("url", "")
     if not url:
         return jsonify({"status": False, "error": "url missing"})
@@ -22,13 +28,35 @@ def api():
             info = ydl.extract_info(url, download=False)
 
         formats = info.get("formats", [])
+
+        # Pehle try: video+audio ek saath wala mp4
         video = None
-        audio = None
+        best_h = 0
         for f in formats:
             if f.get("vcodec") != "none" and f.get("acodec") != "none" and f.get("ext") == "mp4":
-                video = f["url"]
+                h = f.get("height") or 0
+                if h >= best_h:
+                    best_h = h
+                    video = f["url"]
+
+        # Nahi mila to best video-only mp4 (audio alag se milega)
+        if not video:
+            best_h = 0
+            for f in formats:
+                if f.get("vcodec") != "none" and f.get("acodec") == "none" and f.get("ext") == "mp4":
+                    h = f.get("height") or 0
+                    if h >= best_h:
+                        best_h = h
+                        video = f["url"]
+
+        audio = None
+        best_abr = 0
+        for f in formats:
             if f.get("vcodec") == "none" and f.get("acodec") != "none":
-                audio = f["url"]
+                abr = f.get("abr") or 0
+                if abr >= best_abr:
+                    best_abr = abr
+                    audio = f["url"]
 
         return jsonify({
             "status": True,
