@@ -4,25 +4,21 @@ import yt_dlp
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get("API_KEY", "change-this-secret")
-
 
 @app.route("/")
 def home():
-    return jsonify({"status": True, "message": "YT API running. Use /api?url=VIDEO_LINK&key=YOUR_KEY"})
+    return jsonify({"status": True, "message": "YT API running. Use /api?url=VIDEO_LINK"})
 
 
 @app.route("/api")
 def api():
-    key = request.args.get("key", "")
-    if key != API_KEY:
-        return jsonify({"status": False, "error": "unauthorized"}), 401
-
     url = request.args.get("url", "")
     if not url:
         return jsonify({"status": False, "error": "url missing"})
 
     opts = {"quiet": True, "noplaylist": True, "skip_download": True}
+    if os.path.exists("cookies.txt"):
+        opts["cookiefile"] = "cookies.txt"
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
