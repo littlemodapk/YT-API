@@ -42,20 +42,33 @@ def api():
     if not url:
         return jsonify({"status": False, "error": "url missing"})
 
-    opts = {
-        "quiet": True,
-        "noplaylist": True,
-        "skip_download": True,
-        # Ye clients JS/PO-token ke bina bhi video formats dete hain
-        "extractor_args": {"youtube": {"player_client": ["android_vr", "tv", "web_safari", "web"]}},
-    }
-    cf = get_cookiefile()
-    if cf:
-        opts["cookiefile"] = cf
+    cf = get_cookiefile()  # optional, na ho to bhi chalega
+    CLIENTS = ["android_vr", "tv", "ios", "mweb", "web_safari"]
 
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        info = None
+        last_err = None
+        # Har client alag try karo, jo pehle chal jaye wahi use hoga
+        for client in CLIENTS:
+            opts = {
+                "quiet": True,
+                "noplaylist": True,
+                "skip_download": True,
+                "extractor_args": {"youtube": {"player_client": [client]}},
+            }
+            if cf:
+                opts["cookiefile"] = cf
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    cand = ydl.extract_info(url, download=False)
+                if any(is_direct(f) and has_video(f) for f in cand.get("formats", [])):
+                    info = cand
+                    break
+                last_err = last_err or "no video formats from " + client
+            except Exception as e:
+                last_err = str(e)
+        if info is None:
+            return jsonify({"status": False, "error": (last_err or "failed")[:300]})
 
         formats = [f for f in info.get("formats", []) if is_direct(f)]
 
