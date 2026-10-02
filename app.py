@@ -1,8 +1,20 @@
 import os
+import shutil
 from flask import Flask, jsonify, request
 import yt_dlp
 
 app = Flask(__name__)
+
+
+def get_cookiefile():
+    # Render Secret File (/etc/secrets/cookies.txt) ya repo ki cookies.txt
+    # yt-dlp cookie file me write karta hai, isliye /tmp me copy karte hain
+    for src in ("/etc/secrets/cookies.txt", "cookies.txt"):
+        if os.path.exists(src):
+            dst = "/tmp/cookies.txt"
+            shutil.copyfile(src, dst)
+            return dst
+    return None
 
 
 @app.route("/")
@@ -37,8 +49,9 @@ def api():
         # Ye clients JS/PO-token ke bina bhi video formats dete hain
         "extractor_args": {"youtube": {"player_client": ["android_vr", "tv", "web_safari", "web"]}},
     }
-    if os.path.exists("cookies.txt"):
-        opts["cookiefile"] = "cookies.txt"
+    cf = get_cookiefile()
+    if cf:
+        opts["cookiefile"] = cf
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
